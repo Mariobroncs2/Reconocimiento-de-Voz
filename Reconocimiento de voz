@@ -1,0 +1,68 @@
+import librosa
+import numpy as np
+from sklearn.svm import SVC
+from sklearn.model_selection import train_test_split
+import os
+
+# Carga las muestras de voz grabadas
+def carga_muestras(muestras_propia):
+    muestras_propia = []
+    for archivo in os.listdir(muestras_propia):
+        if archivo.endswith(".wav"):
+            audio, sr = librosa.load(os.path.join(muestras_propia, archivo))
+            muestras_propia.append(audio)
+    return muestras_propia
+
+# Extrae características de las muestras de voz
+def extrae_caracteristicas(muestras1):
+    caracteristicas = []
+    for muestras_propia in muestras1:
+        mfcc = librosa.feature.mfcc(muestras_propia, sr=44100)
+        caracteristicas.append(mfcc.mean(axis=1))
+    return np.array(caracteristicas)
+
+# Entrena el modelo
+def entrena_modelo(caracteristicas, etiquetas):
+    X_train, X_test, y_train, y_test = train_test_split(caracteristicas, etiquetas, test_size=0.2, random_state=42)
+    modelo = SVC(kernel='rbf', C=1)
+    modelo.fit(X_train, y_train)
+    return modelo
+
+# Carga las muestras de voz y extrae características
+muestras_propia = carga_muestras("ruta_a_muestras_propia")
+muestras_otra = carga_muestras("ruta_a_muestras_otra")
+caracteristicas_propia = extrae_caracteristicas(muestras_propia)
+caracteristicas_otra = extrae_caracteristicas(muestras_otra)
+
+# Crea las etiquetas
+etiquetas_propia = np.ones(len(caracteristicas_propia))
+etiquetas_otra = np.zeros(len(caracteristicas_otra))
+
+# Combina las características y etiquetas
+caracteristicas = np.concatenate((caracteristicas_propia, caracteristicas_otra))
+etiquetas = np.concatenate((etiquetas_propia, etiquetas_otra))
+
+# Entrena el modelo
+modelo = entrena_modelo(caracteristicas, etiquetas)
+
+# Utiliza el modelo para reconocer la voz
+def reconoce_voz(audio):
+    caracteristicas = extrae_caracteristicas([audio])
+    prediccion = modelo.predict(caracteristicas)
+    if prediccion == 1:
+        return True
+    else:
+        return False
+
+# Integra el reconocedor de voz con el modelo
+import speech_recognition as sr
+
+reconocedor = sr.Recognizer()
+with sr.Microphone() as fuente:
+    audio = reconocedor.listen(fuente)
+    if reconoce_voz(audio):
+        # Procesa el audio si la voz es reconocida
+        texto = reconocedor.recognize_google(audio, language='es-ES')
+        print(f"Has dicho: {texto}")
+    else:
+        print("Voz no reconocida")
